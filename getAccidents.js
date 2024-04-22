@@ -1,33 +1,35 @@
-// Import bigquery
+// Import packages
 const {BigQuery} = require('@google-cloud/bigquery');
+const readline = require('readline');
 
 const bigquery = new BigQuery();
 
-// Function to calculate accidents in area for a given radius (in miles)
-function calculateAccidentRadius(latitude, longitude, radiusInMiles) {
-  
-  // Approximate conversion for latitude
-  const milesToDegrees = 1 / 69;
-  const latDelta = radiusInMiles * milesToDegrees;
-  const lngDelta = radiusInMiles * milesToDegrees / Math.cos(latitude * Math.PI / 180);
+//the function to calculate bounding box for a given radius (in miles)
+function calculateAreaAccident(latitude, longitude, radiusInMiles) {
 
-  const minLat = latitude - latDelta;
-  const maxLat = latitude + latDelta;
-  const minLng = longitude - lngDelta;
-  const maxLng = longitude + lngDelta;
+    // approximate conversion for latitude & longtitude
+    //69 miles in 1 degree
+    const milesToDegrees = 1 / 69;
+    const latDelta = radiusInMiles * milesToDegrees;
+    const lngDelta = radiusInMiles * milesToDegrees / Math.cos(latitude * Math.PI / 180);
 
-  return {
-    minLat,
-    maxLat,
-    minLng,
-    maxLng
-  };
+    const minLat = latitude - latDelta;
+    const maxLat = latitude + latDelta;
+    const minLng = longitude - lngDelta;
+    const maxLng = longitude + lngDelta;
+
+    return {
+        minLat,
+        maxLat,
+        minLng,
+        maxLng
+    };
 }
 
-// Function to query BigQuery and count accidents within the bounding box
+//the function to query BigQuery and count accidents within the area of coordinates
 async function countAccidents(latitude, longitude, radiusInMiles) {
     try {
-        const {minLat, maxLat, minLng, maxLng} = calculateAccidentRadius(latitude, longitude, radiusInMiles);
+        const {minLat, maxLat, minLng, maxLng} = calculateAreaAccident(latitude, longitude, radiusInMiles);
 
         const query = `
             SELECT COUNT(*) as accidentCount
@@ -38,16 +40,14 @@ async function countAccidents(latitude, longitude, radiusInMiles) {
         `;
 
         const options = {
-            query: query,
-            //dataset only has US currently
-            location: 'US',
+            query: query
         };
 
-        // Run the query
+        // run query
         const [rows] = await bigquery.query(options);
 
         if (rows.length > 0) {
-            console.log(`Total accidents within ${radiusInMiles} mile(s): ${rows[0].accidentCount}`);
+            console.log(`Total accidents within ${radiusInMiles} miles: ${rows[0].accidentCount}`);
         } else {
             console.log('No accidents found within the specified radius.');
         }
@@ -56,14 +56,27 @@ async function countAccidents(latitude, longitude, radiusInMiles) {
     }
 }
 
-// the cordinates below are for 82nd st & allison pointe blvd
-// other wise known as an area with plenty of accidents
-// test latitude
-const userLatitude = 39.9050257;
-// test longitude
-const userLongitude = -86.0832871;
-// Radius in miles
-const radiusMiles = 1;
+// the function to ask user for latitude, longitude, and radius input using readline
+function promptForInput() {
+    const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout
+    });
 
-// Call the function to count accidents within the specified radius
-countAccidents(userLatitude, userLongitude, radiusMiles);
+    rl.question('Enter latitude: ', (latitude) => {
+        rl.question('Enter longitude: ', (longitude) => {
+            rl.question('Enter radius (in miles): ', (radius) => {
+                rl.close();
+                const parsedLatitude = parseFloat(latitude);
+                const parsedLongitude = parseFloat(longitude);
+                const parsedRadius = parseFloat(radius);
+
+                // Call the function to count accidents within the desired radius
+                countAccidents(parsedLatitude, parsedLongitude, parsedRadius);
+            });
+        });
+    });
+}
+
+// Run the accident counter by prompting for user input
+promptForInput();
